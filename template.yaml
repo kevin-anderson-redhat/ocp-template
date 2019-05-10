@@ -1,0 +1,135 @@
+apiVersion: v1
+kind: Template
+metadata:
+  name: my-app-template
+  annotations:
+    description: "This is my first template"
+    # iconClass: '
+    tags: "centos,python"
+labels:
+  template: my-app-template
+  my-app-templ: my-app-templ
+
+objects:
+- apiVersion: v1
+  kind: BuildConfig
+  metadata:
+    name: s2i-python-container
+    labels:
+      app: s2i-python-container
+  spec:
+    source:
+      contextDir: 3.6/test/setup-test-app
+      git:
+        uri: https://github.com/sclorg/s2i-python-container.git
+      type: Git
+    strategy:
+      sourceStrategy:
+        from:
+          kind: ImageStreamTag
+          name: python:3.6
+          namespace: openshift
+    output:
+      to:
+        kind: ImageStreamTag
+        name: s2i-python-container:latest
+    triggers:
+    - type: GitHub
+      github:
+        secret: lneQpjzrjN5Z02Lhafro
+    - type: Generic
+      generic:
+        secret: Cw0180viVZoKEX_tnxZR
+    - type: ImageChange
+      imageChange: {}
+
+- apiVersion: v1
+  kind: ImageStream
+  metadata:
+    labels:
+      app: s2i-python-container
+    name: s2i-python-container
+  spec:
+    lookupPolicy:
+      local: false
+
+- apiVersion: v1
+  kind: DeploymentConfig
+  metadata:
+    labels:
+      app: s2i-python-container
+    name: s2i-python-container
+  spec:
+    replicas: 1
+    revisionHistoryLimit: 10
+    selector:
+      app: s2i-python-container
+      deploymentconfig: s2i-python-container
+    strategy:
+      activeDeadlineSeconds: 21600
+      resources: {}
+      rollingParams:
+        intervalSeconds: 1
+        maxSurge: 25%
+        maxUnavailable: 25%
+        timeoutSeconds: 600
+        updatePeriodSeconds: 1
+      type: Rolling
+    template:
+      metadata:
+        labels:
+          app: s2i-python-container
+          deploymentconfig: s2i-python-container
+      spec:
+        containers:
+        - name: s2i-python-container
+          imagePullPolicy: Always
+          ports:
+          - containerPort: 8080
+            protocol: TCP
+          resources: {}
+    test: false
+    triggers:
+    - type: ConfigChange
+    - imageChangeParams:
+        automatic: true
+        containerNames:
+        - s2i-python-container
+        from:
+          kind: ImageStreamTag
+          name: s2i-python-container:latest
+      type: ImageChange
+
+- apiVersion: v1
+  kind: Route
+  metadata:
+    labels:
+      app: s2i-python-container
+    name: s2i-python-container
+  spec:
+    port:
+      targetPort: 8080-tcp
+    to:
+      kind: Service
+      name: s2i-python-container
+      weight: 100
+    wildcardPolicy: None
+
+- apiVersion: v1
+  kind: Service
+  metadata:
+    labels:
+      app: s2i-python-container
+    name: s2i-python-container
+  spec:
+    ports:
+    - name: 8080-tcp
+      port: 8080
+      protocol: TCP
+      targetPort: 8080
+    selector:
+      app: s2i-python-container
+      deploymentconfig: s2i-python-container
+    sessionAffinity: None
+    type: ClusterIP
+ 
